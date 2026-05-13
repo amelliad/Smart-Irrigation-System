@@ -1,0 +1,95 @@
+from flask import Flask, request, jsonify
+import pandas as pd
+import joblib
+
+# =====================================
+# LOAD MODEL
+# =====================================
+
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+
+model_path = os.path.join(
+    BASE_DIR,
+    'model',
+    'rf_irrigation_model.pkl'
+)
+
+scaler_path = os.path.join(
+    BASE_DIR,
+    'model',
+    'scaler.pkl'
+)
+
+encoder_path = os.path.join(
+    BASE_DIR,
+    'model',
+    'label_encoders.pkl'
+)
+
+model = joblib.load(model_path)
+scaler = joblib.load(scaler_path)
+label_encoders = joblib.load(encoder_path)
+
+# =====================================
+# FLASK
+# =====================================
+
+app = Flask(__name__)
+
+# =====================================
+# HOME
+# =====================================
+
+@app.route('/')
+def home():
+
+    return 'Smart Irrigation API Running'
+
+# =====================================
+# PREDICT
+# =====================================
+
+@app.route('/predict', methods=['POST'])
+def predict():
+
+    data = request.json
+
+    df = pd.DataFrame([{
+
+        'Soil_Moisture': data['Soil_Moisture'],
+        'Temperature_C': data['Temperature_C'],
+        'Humidity': data['Humidity'],
+        'Rainfall_mm': data['Rainfall_mm'],
+        'Sunlight_Hours': data['Sunlight_Hours'],
+        'Crop_Growth_Stage': data['Crop_Growth_Stage'],
+        'Mulching_Used': data['Mulching_Used'],
+        'Wind_Speed_kmh': data['Wind_Speed_kmh']
+
+    }])
+
+    scaled = scaler.transform(df)
+
+    prediction = model.predict(scaled)
+
+    result = label_encoders[
+        'Irrigation_Need'
+    ].inverse_transform(prediction)
+
+    return jsonify({
+
+        'prediction': result[0]
+    })
+
+# =====================================
+# RUN
+# =====================================
+
+if __name__ == '__main__':
+
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=True
+    )
